@@ -10,18 +10,18 @@ SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,N
 -- -----------------------------------------------------
 -- Schema facial-tcc
 -- -----------------------------------------------------
-DROP SCHEMA IF EXISTS facial-tcc ;
+DROP SCHEMA IF EXISTS facialtcc ;
 
 -- -----------------------------------------------------
 -- Schema facial-tcc
 -- -----------------------------------------------------
-CREATE SCHEMA IF NOT EXISTS facial-tcc DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci ;
-USE facial-tcc ;
+CREATE SCHEMA IF NOT EXISTS facialtcc DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci ;
+USE facialtcc ;
 
 -- -----------------------------------------------------
 -- Table facial-tcc.turmas
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS facial-tcc.turmas (
+CREATE TABLE IF NOT EXISTS facialtcc.turmas (
   id INT NOT NULL AUTO_INCREMENT,
   nome VARCHAR(45) NOT NULL,
   PRIMARY KEY (id))
@@ -34,7 +34,7 @@ COLLATE = utf8mb4_0900_ai_ci;
 -- -----------------------------------------------------
 -- Table facial-tcc.alunos
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS facial-tcc.alunos (
+CREATE TABLE IF NOT EXISTS facialtcc.alunos (
   id INT NOT NULL AUTO_INCREMENT,
   nome VARCHAR(255) NOT NULL,
   cpf VARCHAR(14) NOT NULL,
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS facial-tcc.alunos (
   INDEX fk_alunos_turmas1_idx (turmas_id ASC) VISIBLE,
   CONSTRAINT fk_alunos_turmas1
     FOREIGN KEY (turmas_id)
-    REFERENCES facial-tcc.turmas (id))
+    REFERENCES facialtcc.turmas (id))
 ENGINE = InnoDB
 AUTO_INCREMENT = 2
 DEFAULT CHARACTER SET = utf8mb4
@@ -58,7 +58,7 @@ COLLATE = utf8mb4_0900_ai_ci;
 -- -----------------------------------------------------
 -- Table facial-tcc.professores
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS facial-tcc.professores (
+CREATE TABLE IF NOT EXISTS facialtcc.professores (
   id INT NOT NULL AUTO_INCREMENT,
   nome VARCHAR(255) NOT NULL,
   cpf VARCHAR(14) NOT NULL,
@@ -75,7 +75,7 @@ COLLATE = utf8mb4_0900_ai_ci;
 -- -----------------------------------------------------
 -- Table facial-tcc.registros_acessos
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS facial-tcc.registros_acessos (
+CREATE TABLE IF NOT EXISTS facialtcc.registros_acessos (
   id INT NOT NULL AUTO_INCREMENT,
   tipo_identificacao ENUM('rfid', 'facial') NOT NULL,
   data_hora DATETIME NOT NULL,
@@ -87,10 +87,10 @@ CREATE TABLE IF NOT EXISTS facial-tcc.registros_acessos (
   INDEX fk_registros_acessos_professores1_idx (professores_id ASC) VISIBLE,
   CONSTRAINT fk_registros_acessos_alunos
     FOREIGN KEY (alunos_id)
-    REFERENCES facial-tcc.alunos (id),
+    REFERENCES facialtcc.alunos (id),
   CONSTRAINT fk_registros_acessos_professores1
     FOREIGN KEY (professores_id)
-    REFERENCES facial-tcc.professores (id))
+    REFERENCES facialtcc.professores (id))
 ENGINE = InnoDB
 AUTO_INCREMENT = 2
 DEFAULT CHARACTER SET = utf8mb4
@@ -100,7 +100,7 @@ COLLATE = utf8mb4_0900_ai_ci;
 -- -----------------------------------------------------
 -- Table facial-tcc.turmas_has_professores
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS facial-tcc.turmas_has_professores (
+CREATE TABLE IF NOT EXISTS facialtcc.turmas_has_professores (
   turmas_id INT NOT NULL,
   professores_id INT NOT NULL,
   PRIMARY KEY (turmas_id, professores_id),
@@ -108,10 +108,10 @@ CREATE TABLE IF NOT EXISTS facial-tcc.turmas_has_professores (
   INDEX fk_turmas_has_professores_turmas1_idx (turmas_id ASC) VISIBLE,
   CONSTRAINT fk_turmas_has_professores_professores1
     FOREIGN KEY (professores_id)
-    REFERENCES facial-tcc.professores (id),
+    REFERENCES facialtcc.professores (id),
   CONSTRAINT fk_turmas_has_professores_turmas1
     FOREIGN KEY (turmas_id)
-    REFERENCES facial-tcc.turmas (id))
+    REFERENCES facialtcc.turmas (id))
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb4
 COLLATE = utf8mb4_0900_ai_ci;
