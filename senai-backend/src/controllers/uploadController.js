@@ -81,18 +81,29 @@ function salvarFotoBase64(req, res) {
       return res.status(400).json({ success: false, message: "Imagem base64 é obrigatória." });
     }
 
-    // Remove o prefixo "data:image/jpeg;base64,"
-    const matches = imagem_base64.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/);
-    if (!matches) {
-      return res.status(400).json({ success: false, message: "Formato de imagem inválido." });
+    const rawString = String(imagem_base64).trim();
+    let ext = "jpg";
+    let data = rawString;
+
+    const dataUrlMatch = rawString.match(/^data:(image\/[a-zA-Z0-9.+-]+)(;charset=[^;]+)?;base64,(.+)$/);
+    if (dataUrlMatch && dataUrlMatch.length >= 4) {
+      const mimeType = dataUrlMatch[1];
+      ext = mimeType.split("/")[1] === "jpeg" ? "jpg" : mimeType.split("/")[1];
+      data = dataUrlMatch[3];
+    } else {
+      const cleaned = rawString.replace(/[\r\n\s]+/g, "");
+      if (/^[A-Za-z0-9+/]+={0,2}$/.test(cleaned) && cleaned.length % 4 === 0) {
+        data = cleaned;
+        ext = "jpg";
+      } else {
+        return res.status(400).json({ success: false, message: "Formato de imagem inválido." });
+      }
     }
 
-    const ext = matches[1] === "jpeg" ? "jpg" : matches[1];
-    const data = matches[2];
     const filename = `${prefixo}_${Date.now()}.${ext}`;
     const filepath = path.join(UPLOAD_DIR, filename);
 
-    fs.writeFileSync(filepath, data, "base64");
+    fs.writeFileSync(filepath, Buffer.from(data, "base64"));
 
     res.json({
       success: true,

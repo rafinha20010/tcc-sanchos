@@ -8,10 +8,11 @@ interface Turma {
   id: number;
   nome: string;
   total_alunos: number;
-  professores: string | null;
+  professores: { id: number; nome: string }[] | null;
 }
 
 export default function TurmasPage() {
+    const [loadingProfessores, setLoadingProfessores] = useState(false);
   const [busca, setBusca] = useState("");
   const [turmas, setTurmas] = useState<Turma[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,6 +22,36 @@ export default function TurmasPage() {
   const [turmaEmEdicao, setTurmaEmEdicao] = useState<number | null>(null);
   const [novoNome, setNovoNome] = useState("");
   const [saving, setSaving] = useState(false);
+  const [professores, setProfessores] = useState<any[]>([]);
+  const [professoresSelecionados, setProfessoresSelecionados] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (modalAberto) {
+      console.log('Abrindo modal, buscando professores...');
+      setLoadingProfessores(true);
+      let finished = false;
+      const timeout = setTimeout(() => {
+        if (!finished) {
+          console.warn('Timeout: setando loadingProfessores para false');
+          setLoadingProfessores(false);
+        }
+      }, 5000);
+      api.professores.listar()
+        .then(res => {
+          console.log('Professores recebidos:', res.data);
+          setProfessores(res.data);
+        })
+        .catch((err) => {
+          console.error('Erro ao buscar professores:', err);
+          setProfessores([]);
+        })
+        .finally(() => {
+          finished = true;
+          clearTimeout(timeout);
+          setLoadingProfessores(false);
+        });
+    }
+  }, [modalAberto]);
 
   useEffect(() => {
     fetchTurmas();
@@ -45,12 +76,19 @@ export default function TurmasPage() {
 
     try {
       setSaving(true);
+      let turmaId = turmaEmEdicao;
       if (modoEdicao && turmaEmEdicao) {
         await api.turmas.atualizar(turmaEmEdicao, novoNome.trim());
       } else {
-        await api.turmas.criar(novoNome.trim());
+        const res = await api.turmas.criar(novoNome.trim()) as { data: { id: number } };
+        turmaId = res.data.id;
+      }
+      // Salvar professores vinculados
+      if (turmaId && professoresSelecionados.length > 0) {
+        await api.turmas.atualizarProfessores(turmaId, professoresSelecionados);
       }
       setNovoNome("");
+      setProfessoresSelecionados([]);
       setModalAberto(false);
       setModoEdicao(false);
       setTurmaEmEdicao(null);
@@ -84,6 +122,7 @@ export default function TurmasPage() {
   }
 
   function abrirModalCriar() {
+    console.log('Botão Nova Turma clicado, abrindo modal');
     setModoEdicao(false);
     setTurmaEmEdicao(null);
     setNovoNome("");
@@ -101,9 +140,12 @@ export default function TurmasPage() {
     const termo = busca.trim().toLowerCase();
     return turmas.filter((turma) => {
       if (!termo) return true;
+      const nomesProfessores = turma.professores && Array.isArray(turma.professores)
+        ? turma.professores.map((p) => p.nome.toLowerCase()).join(", ")
+        : "";
       return (
         turma.nome.toLowerCase().includes(termo) ||
-        (turma.professores || "").toLowerCase().includes(termo)
+        nomesProfessores.includes(termo)
       );
     });
   }, [busca, turmas]);
@@ -174,7 +216,11 @@ export default function TurmasPage() {
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-lg font-bold text-gray-900">{turma.nome}</span>
                   </div>
-                  <p className="text-sm text-gray-500 line-clamp-2">{turma.professores || "Sem professor vinculado"}</p>
+                  <p className="text-sm text-gray-500 line-clamp-2">
+                    {turma.professores && turma.professores.length > 0
+                      ? turma.professores.map((p) => p.nome).join(", ")
+                      : "Sem professor vinculado"}
+                  </p>
                 </div>
                 <div className="flex gap-1">
                   <button className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"><Eye className="w-4 h-4" /></button>
@@ -218,6 +264,26 @@ export default function TurmasPage() {
                 className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:border-[#c8102e]"
                 required
               />
+              <label className="block text-sm font-medium text-gray-700 mt-4">Professores da turma</label>
+              <select
+                multiple
+                value={professoresSelecionados.map(String)}
+                onChange={e => {
+                  const options = Array.from(e.target.selectedOptions).map(opt => Number(opt.value));
+                  setProfessoresSelecionados(options);
+                }}
+                className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:border-[#c8102e] h-32"
+              >
+                {loadingProfessores ? (
+                  <option disabled>Carregando professores...</option>
+                ) : professores.length === 0 ? (
+                  <option disabled>Nenhum professor encontrado</option>
+                ) : (
+                  professores.map((p) => (
+                    <option key={p.id} value={p.id}>{p.nome}</option>
+                  ))
+                )}
+              </select>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => fecharModal()} className="rounded-2xl border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
                   Cancelar

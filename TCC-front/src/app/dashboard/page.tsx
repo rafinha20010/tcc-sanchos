@@ -13,60 +13,70 @@ import {
   ArrowRight,
   CalendarDays,
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import api from "@/lib/api";
 
-const stats = [
-  {
-    label: "Total de Alunos",
-    value: "320",
-    sub: "+12 este mês",
-    icon: Users,
-    color: "bg-blue-500",
-    light: "bg-blue-50",
-    text: "text-blue-600",
-  },
-  {
-    label: "Entradas Hoje",
-    value: "287",
-    sub: "89% de presença",
-    icon: DoorOpen,
-    color: "bg-emerald-500",
-    light: "bg-emerald-50",
-    text: "text-emerald-600",
-  },
-  {
-    label: "Alertas Ativos",
-    value: "3",
-    sub: "Requer atenção",
-    icon: AlertTriangle,
-    color: "bg-[#c8102e]",
-    light: "bg-red-50",
-    text: "text-[#c8102e]",
-  },
-  {
-    label: "Turmas Ativas",
-    value: "18",
-    sub: "4 cursos",
-    icon: TrendingUp,
-    color: "bg-violet-500",
-    light: "bg-violet-50",
-    text: "text-violet-600",
-  },
-];
+export default function DashboardHome() {
+  const [stats, setStats] = useState([
+    { label: "Total de Alunos", value: "-", sub: "", icon: Users, color: "bg-blue-500", light: "bg-blue-50", text: "text-blue-600" },
+    { label: "Entradas Hoje", value: "-", sub: "", icon: DoorOpen, color: "bg-emerald-500", light: "bg-emerald-50", text: "text-emerald-600" },
+    { label: "Alertas Ativos", value: "-", sub: "", icon: AlertTriangle, color: "bg-[#c8102e]", light: "bg-red-50", text: "text-[#c8102e]" },
+    { label: "Turmas Ativas", value: "-", sub: "", icon: TrendingUp, color: "bg-violet-500", light: "bg-violet-50", text: "text-violet-600" },
+  ]);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const [alunos, turmas, registrosHoje, professores, registros] = await Promise.all([
+          api.alunos.listar(),
+          api.turmas.listar(),
+          api.registros.hoje(),
+          api.professores.listar(),
+          api.registros.listar(),
+        ]);
+        setStats([
+          { label: "Total de Alunos", value: alunos.total.toString(), sub: "", icon: Users, color: "bg-blue-500", light: "bg-blue-50", text: "text-blue-600" },
+          { label: "Entradas Hoje", value: registrosHoje.data.length.toString(), sub: "", icon: DoorOpen, color: "bg-emerald-500", light: "bg-emerald-50", text: "text-emerald-600" },
+          { label: "Total de Professores", value: professores.data.length.toString(), sub: "", icon: AlertTriangle, color: "bg-[#c8102e]", light: "bg-red-50", text: "text-[#c8102e]" },
+          { label: "Turmas Ativas", value: turmas.data.length.toString(), sub: "", icon: TrendingUp, color: "bg-violet-500", light: "bg-violet-50", text: "text-violet-600" },
+        ]);
+        setRecentActivity(registros.data.slice(0, 5));
+      } catch (e) {
+        // erro silencioso
+      }
+    }
+    fetchStats();
+  }, []);
 
-const recentActivity = [
-  { name: "Otávio Rodrigues", turma: "IDEV3 DS", tipo: "Entrada", metodo: "RFID", hora: "07:28", avatar: "MS" },
-  { name: "Isabela Longhi", turma: "IELEMEC3", tipo: "Entrada", metodo: "Facial", hora: "07:31", avatar: "JS" },
-  { name: "Maria Santos", turma: "IDEV5", tipo: "Entrada", metodo: "RFID", hora: "07:45", avatar: "AL" },
-  { name: "Carlos Martins", turma: "IELEMEC4", tipo: "Saída", metodo: "RFID", hora: "11:50", avatar: "CM" },
-  { name: "Maria Hirano", turma: "IDEV2", tipo: "Entrada", metodo: "Facial", hora: "12:05", avatar: "BC" },
-];
 
-const systemStatus = [
-  { name: "Leitor RFID — Entrada Principal", status: "Operando", ok: true },
-  { name: "Câmera Facial — Corredor A", status: "Operando", ok: true },
-  { name: "Câmera Facial — Corredor B", status: "Offline", ok: false },
-  { name: "Servidor Central", status: "Operando", ok: true },
-];
+
+// Hook para status do sistema (mock até a API real)
+function useSystemStatus() {
+  const [status, setStatus] = useState([
+    { name: "Leitor RFID — Entrada Principal", status: "Operando", ok: true },
+    { name: "Câmera Facial — Corredor A", status: "Operando", ok: true },
+    { name: "Câmera Facial — Corredor B", status: "Offline", ok: false },
+    { name: "Servidor Central", status: "Operando", ok: true },
+  ]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchStatus() {
+      setLoading(true);
+      try {
+        // Quando a API real existir, troque a linha abaixo:
+        // const res = await api.status.get();
+        // setStatus(res.data);
+        setTimeout(() => setLoading(false), 500); // simula delay
+      } catch (e) {
+        setLoading(false);
+      }
+    }
+    fetchStatus();
+  }, []);
+
+  return { status, loading };
+}
 
 const quickLinks = [
   { name: "Novo Aluno", href: "/dashboard/alunos/novo", icon: Users },
@@ -74,7 +84,6 @@ const quickLinks = [
   { name: "Relatório", href: "/dashboard/relatorios", icon: TrendingUp },
 ];
 
-export default function DashboardHome() {
   const hoje = new Date().toLocaleDateString("pt-BR", {
     weekday: "long",
     day: "2-digit",
@@ -82,6 +91,7 @@ export default function DashboardHome() {
     year: "numeric",
   });
 
+  const { status: systemStatus, loading: loadingStatus } = useSystemStatus();
   return (
     <div className="space-y-8 max-w-7xl">
       {/* Header */}
@@ -141,29 +151,29 @@ export default function DashboardHome() {
             {recentActivity.map((item, i) => (
               <div key={i} className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 transition">
                 <div className="w-9 h-9 bg-gradient-to-br from-[#c8102e] to-[#6b0016] rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                  {item.avatar}
+                  {item.aluno_nome ? item.aluno_nome.split(" ").map((n: string) => n[0]).join("") : item.professor_nome ? item.professor_nome.split(" ").map((n: string) => n[0]).join("") : "?"}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
-                  <p className="text-xs text-gray-400">{item.turma}</p>
+                  <p className="text-sm font-semibold text-gray-800 truncate">{item.aluno_nome || item.professor_nome || "-"}</p>
+                  <p className="text-xs text-gray-400">{item.turma_nome || "-"}</p>
                 </div>
                 <span
                   className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                    item.tipo === "Entrada"
+                    item.tipo_acesso === "entrada"
                       ? "bg-emerald-50 text-emerald-700"
                       : "bg-blue-50 text-blue-700"
                   }`}
                 >
-                  {item.tipo}
+                  {item.tipo_acesso === "entrada" ? "Entrada" : item.tipo_acesso === "saida" ? "Saída" : "-"}
                 </span>
                 <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                  item.metodo === "RFID"
+                  item.tipo_identificacao === "rfid"
                     ? "bg-violet-50 text-violet-700"
                     : "bg-orange-50 text-orange-700"
                 }`}>
-                  {item.metodo}
+                  {item.tipo_identificacao === "rfid" ? "RFID" : item.tipo_identificacao === "facial" ? "Facial" : "-"}
                 </span>
-                <span className="text-xs text-gray-400 w-12 text-right">{item.hora}</span>
+                <span className="text-xs text-gray-400 w-12 text-right">{item.data_hora ? new Date(item.data_hora).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "-"}</span>
               </div>
             ))}
           </div>
@@ -175,20 +185,24 @@ export default function DashboardHome() {
             <h3 className="font-bold text-gray-900">Status do Sistema</h3>
           </div>
           <div className="p-4 space-y-3">
-            {systemStatus.map((item, i) => (
-              <div key={i} className={`flex items-center gap-3 p-3 rounded-xl ${item.ok ? "bg-emerald-50" : "bg-red-50"}`}>
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${item.ok ? "bg-emerald-500" : "bg-red-500"}`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-gray-700 truncate">{item.name}</p>
-                  <p className={`text-xs ${item.ok ? "text-emerald-600" : "text-red-600"}`}>{item.status}</p>
+            {loadingStatus ? (
+              <div className="text-center text-gray-400 py-6">Carregando status do sistema...</div>
+            ) : (
+              systemStatus.map((item, i) => (
+                <div key={i} className={`flex items-center gap-3 p-3 rounded-xl ${item.ok ? "bg-emerald-50" : "bg-red-50"}`}>
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${item.ok ? "bg-emerald-500" : "bg-red-500"}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-700 truncate">{item.name}</p>
+                    <p className={`text-xs ${item.ok ? "text-emerald-600" : "text-red-600"}`}>{item.status}</p>
+                  </div>
+                  {item.ok ? (
+                    <CheckCircle2 size={16} className="text-emerald-500 flex-shrink-0" />
+                  ) : (
+                    <AlertTriangle size={16} className="text-red-500 flex-shrink-0" />
+                  )}
                 </div>
-                {item.ok ? (
-                  <CheckCircle2 size={16} className="text-emerald-500 flex-shrink-0" />
-                ) : (
-                  <AlertTriangle size={16} className="text-red-500 flex-shrink-0" />
-                )}
-              </div>
-            ))}
+              ))
+            )}
 
             {/* Device icons */}
             <div className="pt-2 grid grid-cols-2 gap-2">

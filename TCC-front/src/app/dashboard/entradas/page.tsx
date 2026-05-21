@@ -6,6 +6,7 @@ import {
   Wifi, Camera, CreditCard, CheckCircle, XCircle,
   Clock, Activity, ShieldCheck
 } from "lucide-react";
+import api from "@/lib/api";
 
 // --- CONFIGURAÇÕES DO MODELO ---
 // Substitua pelo link que você gerou no Teachable Machine (Upload Model)
@@ -29,6 +30,7 @@ export default function EntradasPage() {
   const [entradas, setEntradas] = useState<Entrada[]>([]);
   const [pulsar, setPulsar] = useState(false);
   const [filtro, setFiltro] = useState<"Todos" | EntradaTipo | EntradaStatus>("Todos");
+  const [loading, setLoading] = useState(true);
   
   // Estados da IA
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -36,22 +38,34 @@ export default function EntradasPage() {
   const [lastDetected, setLastDetected] = useState("");
   const [cooldown, setCooldown] = useState(false);
 
-  // 1. Carrega a IA e a Câmera
+  // 1. Carrega dados do backend ao montar
   useEffect(() => {
-    async function initIA() {
+    async function fetchEntradas() {
       try {
-        const m = await tmImage.load(URL_MODELO + "model.json", URL_MODELO + "metadata.json");
-        setModel(m);
-        
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { width: 640, height: 480 } 
-        });
-        if (videoRef.current) videoRef.current.srcObject = stream;
+        const response = await api.registros.hoje();
+        if (response.data && Array.isArray(response.data)) {
+          const entradasFormatadas = response.data.map((reg: any) => ({
+            id: reg.id,
+            nome: reg.aluno_nome || reg.professor_name || "Desconhecido",
+            turma: reg.turma_nome || "N/A",
+            tipo: (reg.tipo_identificacao === 'rfid' ? 'RFID' : 'Facial') as EntradaTipo,
+            status: "Autorizado" as EntradaStatus,
+            hora: new Date(reg.data_hora).toLocaleTimeString("pt-BR"),
+            avatar: (reg.aluno_nome || reg.professor_name || "").substring(0, 2).toUpperCase(),
+            local: "Portaria Principal"
+          }));
+          setEntradas(entradasFormatadas.slice(0, 10));
+        }
       } catch (err) {
-        console.error("Erro ao iniciar sistema:", err);
+        console.error("Erro ao carregar entradas:", err);
+      } finally {
+        setLoading(false);
       }
     }
-    initIA();
+    
+    fetchEntradas();
+    const interval = setInterval(fetchEntradas, 5000); // Atualiza a cada 5 segundos
+    return () => clearInterval(interval);
   }, []);
 
   // 2. Loop de Reconhecimento em Tempo Real
@@ -194,7 +208,7 @@ export default function EntradasPage() {
               {filtradas.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="text-center py-10 text-gray-400 text-sm">
-                    Nenhum movimento detectado pela câmera ainda...
+                    {loading ? "Carregando entradas..." : "Nenhum movimento detectado pela câmera ainda..."}
                   </td>
                 </tr>
               ) : (

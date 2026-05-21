@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Save,
   Wifi,
@@ -14,7 +14,6 @@ import {
 
 export default function ConfiguracoesPage() {
   const [saved, setSaved] = useState(false);
-
   const [config, setConfig] = useState({
     nomeEscola: "SENAI Marília",
     emailAdmin: "admin@sp.senai.br",
@@ -28,7 +27,24 @@ export default function ConfiguracoesPage() {
     retencaoDados: "365",
   });
 
+  // Load config from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("senai_config");
+      if (saved) {
+        try {
+          setConfig(JSON.parse(saved));
+        } catch (e) {
+          console.error("Error loading config:", e);
+        }
+      }
+    }
+  }, []);
+
   const handleSave = () => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("senai_config", JSON.stringify(config));
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };

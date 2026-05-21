@@ -8,15 +8,23 @@ async function listar(req, res) {
       SELECT 
         t.id,
         t.nome,
-        COUNT(DISTINCT a.id) AS total_alunos,
-        GROUP_CONCAT(DISTINCT p.nome ORDER BY p.nome SEPARATOR ' | ') AS professores
+        COUNT(DISTINCT a.id) AS total_alunos
       FROM facialtcc.turmas t
       LEFT JOIN facialtcc.alunos a ON a.turmas_id = t.id
-      LEFT JOIN facialtcc.turmas_has_professores tp ON tp.turmas_id = t.id
-      LEFT JOIN facialtcc.professores p ON p.id = tp.professores_id
       GROUP BY t.id, t.nome
       ORDER BY t.nome ASC
     `);
+
+    // Buscar professores de cada turma
+    for (const turma of turmas) {
+      const [profs] = await pool.query(
+        `SELECT p.id, p.nome FROM facialtcc.professores p
+         INNER JOIN facialtcc.turmas_has_professores tp ON p.id = tp.professores_id
+         WHERE tp.turmas_id = ? ORDER BY p.nome`,
+        [turma.id]
+      );
+      turma.professores = profs;
+    }
 
     res.json({ success: true, total: turmas.length, data: turmas });
   } catch (err) {
@@ -129,4 +137,36 @@ async function remover(req, res) {
   }
 }
 
-module.exports = { listar, buscarPorId, criar, atualizar, remover };
+// POST /api/turmas/:id/professores
+async function atualizarProfessores(req, res) {
+  try {
+    const { id } = req.params;
+    const { professores_ids } = req.body; // array de IDs
+
+    if (!Array.isArray(professores_ids)) {
+      return res.status(400).json({ success: false, message: "professores_ids deve ser um array." });
+    }
+
+    // Verifica se a turma existe
+    const [turma] = await pool.query("SELECT id FROM facialtcc.turmas WHERE id = ?", [id]);
+    if (turma.length === 0) {
+      return res.status(404).json({ success: false, message: "Turma não encontrada." });
+    }
+
+    // Remove todos os vínculos atuais
+    await pool.query("DELETE FROM facialtcc.turmas_has_professores WHERE turmas_id = ?", [id]);
+
+    // Adiciona os novos vínculos
+    if (professores_ids.length > 0) {
+      const values = professores_ids.map(pid => [id, pid]);
+      await pool.query("INSERT INTO facialtcc.turmas_has_professores (turmas_id, professores_id) VALUES ?", [values]);
+    }
+
+    res.json({ success: true, message: "Professores atualizados com sucesso." });
+  } catch (err) {
+    console.error("Erro ao atualizar professores da turma:", err);
+    res.status(500).json({ success: false, message: "Erro ao atualizar professores da turma." });
+  }
+}
+
+module.exports = { listar, buscarPorId, criar, atualizar, remover, atualizarProfessores };

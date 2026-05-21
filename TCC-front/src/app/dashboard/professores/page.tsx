@@ -9,7 +9,7 @@ interface Professor {
   nome: string;
   cpf: string;
   telefone: string;
-  turmas: string | null;
+  turmas: { id: number; nome: string }[];
 }
 
 export default function ProfessoresPage() {
@@ -37,8 +37,10 @@ export default function ProfessoresPage() {
       setLoading(true);
       setError("");
       const result = await api.professores.listar(busca.trim() || undefined);
+      console.log('Resultado da API de professores:', result);
       setProfessores(result.data);
     } catch (err: any) {
+      console.error('Erro ao buscar professores:', err);
       setError(err?.message || "Erro ao carregar professores.");
     } finally {
       setLoading(false);
@@ -53,15 +55,55 @@ export default function ProfessoresPage() {
 
     try {
       setSaving(true);
-      await api.professores.criar(novoProfessor);
+      if (modoEdicao && profEmEdicao) {
+        await api.professores.atualizar(profEmEdicao, novoProfessor);
+      } else {
+        await api.professores.criar(novoProfessor);
+      }
       setNovoProfessor({ nome: "", cpf: "", rfid: "", telefone: "" });
       setModalAberto(false);
+      setModoEdicao(false);
+      setProfEmEdicao(null);
       await fetchProfessores();
     } catch (err: any) {
-      setError(err?.message || "Não foi possível cadastrar professor.");
+      setError(err?.message || "Não foi possível salvar professor.");
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleEditarProfessor(prof: Professor) {
+    setNovoProfessor({
+      nome: prof.nome,
+      cpf: prof.cpf,
+      rfid: "",
+      telefone: prof.telefone,
+    });
+    setProfEmEdicao(prof.id);
+    setModoEdicao(true);
+    setModalAberto(true);
+  }
+
+  async function handleDeletarProfessor(id: number) {
+    if (!confirm("Tem certeza que deseja deletar este professor?")) {
+      return;
+    }
+    try {
+      setSaving(true);
+      await api.professores.remover(id);
+      await fetchProfessores();
+    } catch (err: any) {
+      setError(err?.message || "Não foi possível deletar professor.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleFecharModal() {
+    setModalAberto(false);
+    setModoEdicao(false);
+    setProfEmEdicao(null);
+    setNovoProfessor({ nome: "", cpf: "", rfid: "", telefone: "" });
   }
 
   function getInitials(nome: string) {
@@ -77,10 +119,13 @@ export default function ProfessoresPage() {
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     return professores.filter((prof) => {
+      const nomesTurmas = Array.isArray(prof.turmas)
+        ? prof.turmas.map((t) => t.nome.toLowerCase()).join(", ")
+        : "";
       return (
         prof.nome.toLowerCase().includes(termo) ||
         prof.cpf.toLowerCase().includes(termo) ||
-        (prof.turmas || "").toLowerCase().includes(termo)
+        nomesTurmas.includes(termo)
       );
     });
   }, [busca, professores]);
@@ -125,7 +170,6 @@ export default function ProfessoresPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtrados.map((prof) => {
-            const turmas = prof.turmas ? prof.turmas.split(" | ") : [];
             return (
               <div key={prof.id} className="bg-white border border-gray-200 rounded-xl p-5 hover:border-[#c8102e]/30 hover:shadow-sm transition-all">
                 <div className="flex items-start justify-between mb-4">
@@ -139,8 +183,8 @@ export default function ProfessoresPage() {
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <button className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
-                    <button className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-red-600 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => handleEditarProfessor(prof)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => handleDeletarProfessor(prof.id)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-red-600 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
 
@@ -155,15 +199,15 @@ export default function ProfessoresPage() {
                   </div>
                 </div>
 
-                {turmas.length > 0 && (
+                {prof.turmas && prof.turmas.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-gray-100">
                     <div className="flex items-center gap-1 mb-2">
                       <BookOpen className="w-3.5 h-3.5 text-gray-400" />
                       <span className="text-xs font-medium text-gray-500">Turmas</span>
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      {turmas.map((t) => (
-                        <span key={t} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-mono">{t}</span>
+                      {prof.turmas.map((t) => (
+                        <span key={t.id} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-mono">{t.nome}</span>
                       ))}
                     </div>
                   </div>
@@ -183,7 +227,7 @@ export default function ProfessoresPage() {
       {modalAberto && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md space-y-4">
-            <h2 className="text-lg font-bold text-gray-900">Novo Professor</h2>
+            <h2 className="text-lg font-bold text-gray-900">{modoEdicao ? "Editar Professor" : "Novo Professor"}</h2>
             <form onSubmit={handleCreateProfessor} className="space-y-4">
               {[
                 { label: "Nome completo", name: "nome", type: "text" },
@@ -203,11 +247,11 @@ export default function ProfessoresPage() {
                 </div>
               ))}
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setModalAberto(false)} type="button" className="flex-1 border border-gray-200 rounded-lg py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                <button onClick={handleFecharModal} type="button" className="flex-1 border border-gray-200 rounded-lg py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
                   Cancelar
                 </button>
                 <button type="submit" disabled={saving} className="flex-1 bg-[#c8102e] hover:bg-[#a00d24] text-white rounded-lg py-2 text-sm font-medium transition-colors">
-                  {saving ? "Salvando..." : "Cadastrar"}
+                  {saving ? "Salvando..." : (modoEdicao ? "Atualizar" : "Cadastrar")}
                 </button>
               </div>
             </form>

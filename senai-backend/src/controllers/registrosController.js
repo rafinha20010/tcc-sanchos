@@ -350,12 +350,12 @@ async function stats(req, res) {
     const [porDia] = await pool.query(`
       SELECT 
         DATE(data_hora) AS data,
-        DAYNAME(data_hora) AS dia_semana,
+        DAYOFWEEK(data_hora) AS dia_semana_num,
         COUNT(*) AS total
       FROM facialtcc.registros_acessos
       WHERE data_hora >= DATE_SUB(NOW(), INTERVAL 7 DAY)
         AND tipo_acesso = 'entrada'
-      GROUP BY DATE(data_hora)
+      GROUP BY DATE(data_hora), DAYOFWEEK(data_hora)
       ORDER BY data ASC
     `);
 

@@ -7,24 +7,25 @@ async function listar(req, res) {
     const { busca } = req.query;
 
     let sql = `
-      SELECT 
-        p.*,
-        GROUP_CONCAT(DISTINCT t.nome ORDER BY t.nome SEPARATOR ' | ') AS turmas
-      FROM facialtcc.professores p
-      LEFT JOIN facialtcc.turmas_has_professores tp ON p.id = tp.professores_id
-      LEFT JOIN facialtcc.turmas t ON tp.turmas_id = t.id
-      WHERE 1=1
-    `;
+      SELECT p.* FROM facialtcc.professores p WHERE 1=1`;
     const params = [];
-
     if (busca) {
       sql += ` AND (p.nome LIKE ? OR p.cpf LIKE ?)`;
       params.push(`%${busca}%`, `%${busca}%`);
     }
-
-    sql += ` GROUP BY p.id ORDER BY p.nome ASC`;
+    sql += ` ORDER BY p.nome ASC`;
 
     const [professores] = await pool.query(sql, params);
+    // Buscar turmas de cada professor
+    for (const prof of professores) {
+      const [turmas] = await pool.query(
+        `SELECT t.id, t.nome FROM facialtcc.turmas t
+         INNER JOIN facialtcc.turmas_has_professores tp ON t.id = tp.turmas_id
+         WHERE tp.professores_id = ? ORDER BY t.nome`,
+        [prof.id]
+      );
+      prof.turmas = turmas;
+    }
 
     res.json({ success: true, total: professores.length, data: professores });
   } catch (err) {

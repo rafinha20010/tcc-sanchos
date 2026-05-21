@@ -13,11 +13,11 @@ function headers(isJson = true): HeadersInit {
   };
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(endpoint: string, options: RequestInit = {}, isJson = true): Promise<T> {
   const response = await fetch(`${BASE_URL}${endpoint}`, {
     ...options,
     headers: {
-      ...headers(),
+      ...headers(isJson),
       ...options.headers,
     },
   });
@@ -57,6 +57,20 @@ export const alunos = {
     const query = params ? `?${new URLSearchParams(params as any).toString()}` : "";
     return request<{ success: boolean; total: number; data: any[] }>(`/alunos${query}`);
   },
+  criar: (aluno: {
+    nome: string;
+    cpf: string;
+    matricula: string;
+    rfid: string;
+    telefone: string;
+    nome_responsavel: string;
+    turmas_id: number;
+    foto: string;
+  }) =>
+    request<{ success: boolean; data: any }>("/alunos", {
+      method: "POST",
+      body: JSON.stringify(aluno),
+    }),
 };
 
 export const professores = {
@@ -80,6 +94,22 @@ export const professores = {
     }),
 };
 
+export const upload = {
+  fotoBase64: (imagem_base64: string) =>
+    request<{ success: boolean; data: { filename: string; url: string } }>("/upload/foto-base64", {
+      method: "POST",
+      body: JSON.stringify({ imagem_base64 }),
+    }),
+  foto: (file: File) => {
+    const formData = new FormData();
+    formData.append("foto", file);
+    return request<{ success: boolean; data: { filename: string; url: string } }>("/upload/foto", {
+      method: "POST",
+      body: formData,
+    }, false);
+  },
+};
+
 export const turmas = {
   listar: () => request<{ success: boolean; data: any[] }>("/turmas"),
   criar: (nome: string) =>
@@ -91,6 +121,11 @@ export const turmas = {
     request(`/turmas/${id}`, {
       method: "PUT",
       body: JSON.stringify({ nome }),
+    }),
+  atualizarProfessores: (id: number, professores_ids: number[]) =>
+    request(`/turmas/${id}/professores`, {
+      method: "POST",
+      body: JSON.stringify({ professores_ids }),
     }),
   remover: (id: number) =>
     request(`/turmas/${id}`, {
@@ -104,5 +139,5 @@ export const registros = {
   stats: () => request<{ success: boolean; data: any }>("/registros/stats"),
 };
 
-const api = { auth, alunos, professores, turmas, registros };
+const api = { auth, alunos, professores, upload, turmas, registros };
 export default api;
