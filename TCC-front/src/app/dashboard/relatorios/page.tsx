@@ -84,7 +84,7 @@ export default function RelatoriosPage() {
 
   const maxEntradasAtual = Math.max(...dadosSemanaAtual.map((d: any) => d.entradas), 1);
 
-  const total = metodosAtual.reduce((s, m) => s + m.valor, 0);
+  const total = metodosAtual.reduce((s: number, m: { valor: number }) => s + m.valor, 0);
   let cumulativo = 0;
   const raio = 40;
   const circunferencia = 2 * Math.PI * raio;

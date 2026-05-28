@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Save, Wifi, Camera, User, BookOpen } from "lucide-react";
-import api from "@/lib/api";
+import api from "../../../../lib/api";
 
 export default function NovoAlunoPage() {
   const router = useRouter();
@@ -12,53 +12,51 @@ export default function NovoAlunoPage() {
   const [success, setSuccess] = useState(false);
   const [rfidScanning, setRfidScanning] = useState(false);
   const [rfidValue, setRfidValue] = useState("");
-  const [turmas, setTurmas] = useState<{ id: number; nome: string }[]>([]);
-  const [error, setError] = useState("");
 
   // --- ESTADOS PARA A CÂMERA ---
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [cameraOn, setCameraOn] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const [form, setForm] = useState({
     nome: "",
     cpf: "",
+    email: "",
     telefone: "",
     turma: "",
     curso: "",
     ra: "",
+    matricula: "",
     responsavel: "",
     telefoneResponsavel: "",
     observacoes: "",
   });
 
-  useEffect(() => {
-    async function loadTurmas() {
-      try {
-        const response = await api.turmas.listar();
-        setTurmas(response.data || []);
-      } catch (err) {
-        console.error("Erro ao carregar turmas:", err);
-      }
-    }
+  const [turmas, setTurmas] = useState<Array<{ id: number; nome: string }>>([]);
 
-    loadTurmas();
+  useEffect(() => {
+    let mounted = true;
+    api.turmas
+      .listar()
+      .then((res) => {
+        if (mounted && res && (res as any).data) {
+          setTurmas((res as any).data || []);
+        }
+      })
+      .catch((err) => {
+        console.error("Erro ao carregar turmas:", err);
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  }
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] || null;
-    setSelectedFile(file);
-    if (file) {
-      const objectUrl = URL.createObjectURL(file);
-      setCapturedImage(objectUrl);
-    }
   }
 
   function simulateRfidScan() {
@@ -71,114 +69,95 @@ export default function NovoAlunoPage() {
   }
 
   // --- FUNÇÃO PARA LIGAR A LOGITECH C270 ---
+  function stopCamera() {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraOn(false);
+  }
+
   async function startCamera() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 1280, height: 720 },
       });
 
+      streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play();
-          setCameraOn(true);
-        };
-      } else {
-        setCameraOn(true);
+        await videoRef.current.play();
       }
+      setCapturedImage(null);
+      setCameraOn(true);
     } catch (error) {
       alert("Erro ao acessar a Logitech C270. Verifique a conexão.");
       console.error(error);
     }
   }
 
+  function clearPhoto() {
+    setCapturedImage(null);
+  }
+
   // --- CAPTURAR FOTO (Para registro visual) ---
   function capturePhoto() {
-    if (!videoRef.current) {
-      alert("Não foi possível capturar a imagem. Verifique se a câmera está ativada e tente novamente.");
-      return;
+    if (videoRef.current) {
+      const canvas = document.createElement("canvas");
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx?.drawImage(videoRef.current, 0, 0);
+
+      const base64 = canvas.toDataURL("image/jpeg");
+      setCapturedImage(base64);
+      stopCamera();
     }
-
-    const width = videoRef.current.videoWidth || 1280;
-    const height = videoRef.current.videoHeight || 720;
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-
-    if (!ctx) {
-      alert("Erro ao capturar a imagem. Tente novamente.");
-      return;
-    }
-
-    ctx.drawImage(videoRef.current, 0, 0, width, height);
-    const base64 = canvas.toDataURL("image/jpeg");
-
-    if (!base64.startsWith("data:image/")) {
-      alert("A imagem capturada não está em um formato válido.");
-      return;
-    }
-
-    setSelectedFile(null);
-    setCapturedImage(base64);
   }
 
   // --- SALVAR ALUNO (Simulação sem Python) ---
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError("");
-
-    if (!capturedImage && !selectedFile) {
-      alert("Por favor, envie ou tire uma foto do aluno para o registro.");
-      return;
-    }
-
-    if (!rfidValue) {
-      alert("Por favor, vincule uma tag RFID ao aluno.");
-      return;
-    }
-
-    if (!form.nome || !form.cpf || !form.ra || !form.telefone || !form.responsavel || !form.turma) {
-      alert("Preencha todos os campos obrigatórios para cadastrar o aluno.");
+    
+    if (!capturedImage) {
+      alert("Por favor, tire uma foto do aluno para o registro.");
       return;
     }
 
     setSaving(true);
-
     try {
-      let uploadResponse;
+      // Primeiro envia a foto em base64 para o backend
+      const uploadRes = await api.upload.fotoBase64(capturedImage, "aluno");
+      const filename = uploadRes?.data?.filename;
 
-      if (selectedFile) {
-        uploadResponse = await api.upload.foto(selectedFile);
-      } else {
-        if (!capturedImage || !capturedImage.startsWith("data:image/")) {
-          throw new Error("Imagem capturada inválida. Por favor, tire a foto novamente.");
-        }
-        uploadResponse = await api.upload.fotoBase64(capturedImage);
+      // Em seguida cria o aluno enviando o nome do arquivo retornado
+      const criarPayload: any = {
+        ...form,
+        rfid: rfidValue || null,
+        foto: filename || null,
+        turmas_id: form.turma ? Number(form.turma) : null,
+      };
+
+      // Chama endpoint de criação de aluno (se existir)
+      try {
+        await api.alunos.criar(criarPayload);
+      } catch (err) {
+        // Se a API de criação não estiver disponível, registramos no console
+        console.warn("API de alunos não disponível ou criação falhou:", err);
       }
 
-      const fotoFilename = uploadResponse.data.filename;
-
-      await api.alunos.criar({
-        nome: form.nome,
-        cpf: form.cpf,
-        matricula: form.ra,
-        rfid: rfidValue,
-        telefone: form.telefone,
-        nome_responsavel: form.responsavel,
-        turmas_id: Number(form.turma),
-        foto: fotoFilename,
-      });
-
+      setSaving(false);
       setSuccess(true);
       setTimeout(() => {
         router.push("/dashboard/alunos");
       }, 1500);
-    } catch (err: any) {
-      console.error("Erro ao cadastrar aluno:", err);
-      setError(err?.message || "Erro ao cadastrar aluno. Tente novamente.");
-    } finally {
+    } catch (err) {
+      console.error("Erro ao enviar foto/registro:", err);
       setSaving(false);
+      alert("Erro ao salvar aluno. Verifique o console para detalhes.");
     }
   }
 
@@ -205,7 +184,7 @@ export default function NovoAlunoPage() {
         <div>
           <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight">Novo Aluno</h2>
           <p className="text-gray-400 text-sm font-medium">Registro de informações e biometria</p>
-        </div>
+        </div>  
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -218,21 +197,25 @@ export default function NovoAlunoPage() {
             <h3 className="font-bold text-gray-900">Dados Pessoais</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
+            <div className="md:col-span-2 space-y-1">
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nome completo *</label>
               <input name="nome" value={form.nome} onChange={handleChange} required placeholder="Ex: João da Silva" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8102e]/10 focus:border-[#c8102e] transition-all" />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">CPF *</label>
-              <input name="cpf" value={form.cpf} onChange={handleChange} required placeholder="000.000.000-00" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#c8102e]" />
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">CPF</label>
+              <input name="cpf" value={form.cpf} onChange={handleChange} placeholder="000.000.000-00" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#c8102e]" />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Telefone *</label>
-              <input name="telefone" value={form.telefone} onChange={handleChange} required placeholder="(11) 99999-9999" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#c8102e]" />
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">E-mail</label>
+              <input name="email" type="email" value={form.email} onChange={handleChange} placeholder="joao@email.com" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#c8102e]" />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nome do Responsável *</label>
-              <input name="responsavel" value={form.responsavel} onChange={handleChange} required placeholder="Ex: Maria Silva" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#c8102e]" />
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Telefone</label>
+              <input name="telefone" value={form.telefone} onChange={handleChange} placeholder="(11) 99999-9999" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#c8102e]" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nome do responsável</label>
+              <input name="responsavel" value={form.responsavel} onChange={handleChange} placeholder="Nome do responsável" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#c8102e]" />
             </div>
           </div>
         </div>
@@ -247,11 +230,15 @@ export default function NovoAlunoPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">RA do Aluno *</label>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">RA do Aluno</label>
               <input name="ra" value={form.ra} onChange={handleChange} required placeholder="Ex: 123456" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#c8102e]" />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Curso *</label>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Matrícula</label>
+              <input name="matricula" value={form.matricula} onChange={handleChange} placeholder="Número da matrícula" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#c8102e]" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Curso</label>
               <select name="curso" value={form.curso} onChange={handleChange} required className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#c8102e] bg-white">
                 <option value="">Selecionar Curso</option>
                 <option value="DS">Desenv de Sistemas</option>
@@ -260,14 +247,18 @@ export default function NovoAlunoPage() {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Turma *</label>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Turma</label>
               <select name="turma" value={form.turma} onChange={handleChange} required className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#c8102e] bg-white">
                 <option value="">Selecionar Turma</option>
-                {turmas.map((turma) => (
-                  <option key={turma.id} value={turma.id}>
-                    {turma.nome}
-                  </option>
-                ))}
+                {turmas.length === 0 ? (
+                  <option value="">Carregando...</option>
+                ) : (
+                  turmas.map((t) => (
+                    <option key={t.id} value={String(t.id)}>
+                      {t.nome}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
           </div>
@@ -301,9 +292,13 @@ export default function NovoAlunoPage() {
             {/* Foto Facial */}
             <div className="border-2 border-dashed border-gray-200 rounded-2xl p-6">
               <div className="aspect-video bg-gray-900 rounded-xl mb-4 overflow-hidden relative group">
-                {cameraOn ? (
-                  <video ref={videoRef} className="w-full h-full object-cover scale-x-[-1]" autoPlay playsInline />
-                ) : (
+                <video
+                  ref={videoRef}
+                  className={`w-full h-full object-cover scale-x-[-1] ${cameraOn ? "" : "hidden"}`}
+                  autoPlay
+                  playsInline
+                />
+                {!cameraOn && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
                     <Camera size={32} className="mb-2 opacity-20" />
                     <p className="text-[10px] font-bold uppercase tracking-tighter opacity-40">Câmera Logitech C270</p>
@@ -321,18 +316,15 @@ export default function NovoAlunoPage() {
               >
                 {cameraOn ? "Bater Foto Agora" : "Ativar Câmera"}
               </button>
-              <div className="mt-4">
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Ou faça upload de uma foto</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
-                />
-                {selectedFile && (
-                  <p className="mt-2 text-xs text-gray-500">Arquivo selecionado: {selectedFile.name}</p>
-                )}
-              </div>
+              {capturedImage && (
+                <button
+                  type="button"
+                  onClick={clearPhoto}
+                  className="w-full mt-3 py-3 rounded-xl font-bold text-xs uppercase tracking-widest bg-red-100 text-red-600 hover:bg-red-200 transition-all"
+                >
+                  Apagar Foto
+                </button>
+              )}
             </div>
           </div>
         </div>

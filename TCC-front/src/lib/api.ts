@@ -50,6 +50,11 @@ export const auth = {
       localStorage.removeItem("senai_token");
     }
   },
+  atualizar: (dados: { email?: string; nome?: string; senha?: string }) =>
+    request<{ success: boolean; message: string; data?: any }>(
+      "/auth",
+      { method: "PUT", body: JSON.stringify(dados) }
+    ),
 };
 
 export const alunos = {
@@ -95,10 +100,10 @@ export const professores = {
 };
 
 export const upload = {
-  fotoBase64: (imagem_base64: string) =>
+  fotoBase64: (imagem_base64: string, prefixo: string = "aluno") =>
     request<{ success: boolean; data: { filename: string; url: string } }>("/upload/foto-base64", {
       method: "POST",
-      body: JSON.stringify({ imagem_base64 }),
+      body: JSON.stringify({ imagem_base64, prefixo }),
     }),
   foto: (file: File) => {
     const formData = new FormData();

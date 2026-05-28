@@ -1,12 +1,12 @@
 // src/server.js — Ponto de entrada do SENAI Monitor Backend
-require("dotenv").config();
+const dotenv = require ('dotenv');
+dotenv.config();
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
-const { testConnection } = require("./config/database");
-
+const { testConnection } = require("./src/config/database");
 const app = express();
-const PORT = process.env.PORT || 3001;
+
 
 // ─── MIDDLEWARES GLOBAIS ────────────────────────────────────────────────────
 
@@ -40,12 +40,12 @@ if (process.env.NODE_ENV === "development") {
 }
 
 // ─── ROTAS DA API ───────────────────────────────────────────────────────────
-app.use("/api/auth",        require("./routes/auth"));
-app.use("/api/alunos",      require("./routes/alunos"));
-app.use("/api/professores", require("./routes/professores"));
-app.use("/api/turmas",      require("./routes/turmas"));
-app.use("/api/registros",   require("./routes/registros"));
-app.use("/api/upload",      require("./routes/upload"));
+app.use("/api/auth",        require("./src/routes/auth"));
+app.use("/api/alunos",      require("./src/routes/alunos"));
+app.use("/api/professores", require("./src/routes/professores"));
+app.use("/api/turmas",      require("./src/routes/turmas"));
+app.use("/api/registros",   require("./src/routes/registros"));
+app.use("/api/upload",      require("./src/routes/upload"));
 
 // ─── ROTA RAIZ (health check) ───────────────────────────────────────────────
 app.get("/", (req, res) => {
@@ -99,16 +99,8 @@ app.use((req, res) => {
 async function iniciar() {
   await testConnection(); // Testa o banco antes de abrir o servidor
 
-  app.listen(PORT, () => {
-    console.log("\n╔══════════════════════════════════════════╗");
-    console.log("║      SENAI Monitor — Backend API         ║");
-    console.log("╠══════════════════════════════════════════╣");
-    console.log(`║  Servidor:  http://localhost:${PORT}          ║`);
-    console.log(`║  Ambiente:  ${process.env.NODE_ENV || "development"}                  ║`);
-    console.log("╚══════════════════════════════════════════╝\n");
-    console.log("  Credenciais de acesso padrão:");
-    console.log("  📧 E-mail: admin@senai.br");
-    console.log("  🔑 Senha:  admin123\n");
+  app.listen(process.env.PORT, () => {
+    console.log(`Servidor rodando na porta ${process.env.PORT}`)
   });
 }
 

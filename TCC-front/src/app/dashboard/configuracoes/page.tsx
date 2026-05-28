@@ -9,8 +9,9 @@ import {
   Shield,
   Database,
   RefreshCw,
-  CheckCircle
+  CheckCircle,
 } from "lucide-react";
+import api from "../../../lib/api";
 
 export default function ConfiguracoesPage() {
   const [saved, setSaved] = useState(false);
@@ -42,8 +43,35 @@ export default function ConfiguracoesPage() {
   }, []);
 
   const handleSave = () => {
+    // Persist local app config
     if (typeof window !== "undefined") {
       localStorage.setItem("senai_config", JSON.stringify(config));
+    }
+
+    // If admin email changed, call backend to update the login email
+    try {
+      const usuario = typeof window !== "undefined" ? localStorage.getItem("senai_usuario") : null;
+      const currentEmail = usuario ? JSON.parse(usuario).email : null;
+
+      if (config.emailAdmin && config.emailAdmin !== currentEmail) {
+        api.auth.atualizar({ email: config.emailAdmin })
+          .then(() => {
+            // Update stored usuario so UI reflects new email
+            if (typeof window !== "undefined") {
+              const u = localStorage.getItem("senai_usuario");
+              if (u) {
+                const parsed = JSON.parse(u);
+                parsed.email = config.emailAdmin;
+                localStorage.setItem("senai_usuario", JSON.stringify(parsed));
+              }
+            }
+          })
+          .catch((err: unknown) => {
+            console.error("Erro ao atualizar email admin:", err);
+          });
+      }
+    } catch (err) {
+      console.error("Erro ao sincronizar email:", err);
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);

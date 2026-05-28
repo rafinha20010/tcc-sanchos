@@ -94,65 +94,110 @@ async function buscarPorId(req, res) {
 // POST /api/alunos — Cadastra novo aluno
 async function criar(req, res) {
   try {
-    const { nome, cpf, matricula, rfid, telefone, nome_responsavel, turmas_id, foto } = req.body;
+    // Aceita campos com nomes alternativos vindos do front-end
+    const {
+      nome,
+      cpf,
+      matricula,
+      rfid,
+      telefone,
+      nome_responsavel,
+      turmas_id,
+      foto,
+      ra,
+      responsavel,
+      turma,
+      telefoneResponsavel,
+    } = req.body;
 
-    // Validações básicas
-    if (!nome || !cpf || !matricula || !rfid || !telefone || !nome_responsavel || !turmas_id) {
+    // Normaliza campos
+    const matriculaFinal = matricula || ra;
+    const nomeResponsavelFinal = nome_responsavel || responsavel || null;
+    const telefoneFinal = telefone || telefoneResponsavel || null;
+    let turmasIdFinal = turmas_id || null;
+
+    // Validações mínimas: nome e matrícula e turma
+    if (!nome || !matriculaFinal) {
       return res.status(400).json({
         success: false,
-        message: "Todos os campos obrigatórios devem ser preenchidos.",
-        campos_obrigatorios: ["nome", "cpf", "matricula", "rfid", "telefone", "nome_responsavel", "turmas_id"],
+        message: "Campos obrigatórios ausentes. Pelo menos 'nome' e 'matrícula (ra)' são necessários.",
+        campos_obrigatorios: ["nome", "matricula (ou ra)"],
       });
     }
 
-    // Verifica se CPF já existe
-    const [cpfExiste] = await pool.query(
-      "SELECT id FROM facialtcc.alunos WHERE cpf = ?",
-      [cpf]
-    );
-    if (cpfExiste.length > 0) {
-      return res.status(409).json({ success: false, message: "CPF já cadastrado." });
+    // Se não passou turmas_id diretamente, tenta resolver a partir de 'turma' (nome ou código)
+    if (!turmasIdFinal && turma) {
+      // Tenta buscar por nome parecido
+      const [rows] = await pool.query(
+        "SELECT id FROM facialtcc.turmas WHERE nome LIKE ? LIMIT 1",
+        [`%${turma}%`]
+      );
+      if (rows.length > 0) turmasIdFinal = rows[0].id;
+    }
+
+    if (!turmasIdFinal) {
+      return res.status(400).json({ success: false, message: "Turma (turmas_id) é obrigatória ou inválida." });
+    }
+
+    // Verificações condicionais: só valida CPF/matricula/rfid duplicados se informado
+    if (cpf) {
+      const [cpfExiste] = await pool.query(
+        "SELECT id FROM facialtcc.alunos WHERE cpf = ?",
+        [cpf]
+      );
+      if (cpfExiste.length > 0) {
+        return res.status(409).json({ success: false, message: "CPF já cadastrado." });
+      }
     }
 
     // Verifica se matrícula já existe
     const [matExiste] = await pool.query(
       "SELECT id FROM facialtcc.alunos WHERE matricula = ?",
-      [matricula]
+      [matriculaFinal]
     );
     if (matExiste.length > 0) {
       return res.status(409).json({ success: false, message: "Matrícula já cadastrada." });
     }
 
-    // Verifica se RFID já existe
-    const [rfidExiste] = await pool.query(
-      "SELECT id FROM facialtcc.alunos WHERE rfid = ?",
-      [rfid]
-    );
-    if (rfidExiste.length > 0) {
-      return res.status(409).json({ success: false, message: "Tag RFID já vinculada a outro aluno." });
+    if (rfid) {
+      const [rfidExiste] = await pool.query(
+        "SELECT id FROM facialtcc.alunos WHERE rfid = ?",
+        [rfid]
+      );
+      if (rfidExiste.length > 0) {
+        return res.status(409).json({ success: false, message: "Tag RFID já vinculada a outro aluno." });
+      }
     }
 
-    // Verifica se a turma existe
+    // Confirma que a turma (resolvida) existe
     const [turmaExiste] = await pool.query(
       "SELECT id FROM facialtcc.turmas WHERE id = ?",
-      [turmas_id]
+      [turmasIdFinal]
     );
     if (turmaExiste.length === 0) {
       return res.status(404).json({ success: false, message: "Turma não encontrada." });
     }
 
+  // Normaliza caminho da foto para armazenar no banco como uploads/<filename>
+    function fotoToPath(f) {
+      if (!f) return "uploads/default.jpg";
+      const s = String(f);
+      if (s.startsWith("uploads/") || s.startsWith("/")) return s.startsWith("/") ? s.substring(1) : s;
+      return `uploads/${s}`;
+    }
+
     // Insere o aluno
-    const fotoFinal = foto || "default.jpg";
+    const fotoFinal = fotoToPath(foto);
     const [result] = await pool.query(
       `INSERT INTO facialtcc.alunos (nome, cpf, matricula, rfid, foto, telefone, nome_responsavel, turmas_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [nome, cpf, matricula, rfid, fotoFinal, telefone, nome_responsavel, turmas_id]
+      [nome, cpf || null, matriculaFinal, rfid || null, fotoFinal, telefoneFinal, nomeResponsavelFinal, turmasIdFinal]
     );
 
     res.status(201).json({
       success: true,
       message: "Aluno cadastrado com sucesso!",
-      data: { id: result.insertId, nome, matricula },
+      data: { id: result.insertId, nome, matricula: matriculaFinal },
     });
   } catch (err) {
     console.error("Erro ao criar aluno:", err);
@@ -183,6 +228,17 @@ async function atualizar(req, res) {
       }
     }
 
+    // Normaliza foto se fornecida
+    let fotoParaSalvar = foto;
+    if (fotoParaSalvar) {
+      const s = String(fotoParaSalvar);
+      if (!s.startsWith("uploads/") && !s.startsWith("/")) {
+        fotoParaSalvar = `uploads/${s}`;
+      } else if (s.startsWith("/")) {
+        fotoParaSalvar = s.substring(1);
+      }
+    }
+
     await pool.query(
       `UPDATE facialtcc.alunos 
        SET nome = COALESCE(?, nome),
@@ -192,7 +248,7 @@ async function atualizar(req, res) {
            rfid = COALESCE(?, rfid),
            foto = COALESCE(?, foto)
        WHERE id = ?`,
-      [nome, telefone, nome_responsavel, turmas_id, rfid, foto, id]
+      [nome, telefone, nome_responsavel, turmas_id, rfid, fotoParaSalvar, id]
     );
 
     res.json({ success: true, message: "Aluno atualizado com sucesso!" });
