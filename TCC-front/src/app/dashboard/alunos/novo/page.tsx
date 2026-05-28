@@ -142,12 +142,9 @@ export default function NovoAlunoPage() {
       };
 
       // Chama endpoint de criação de aluno (se existir)
-      try {
+      
         await api.alunos.criar(criarPayload);
-      } catch (err) {
-        // Se a API de criação não estiver disponível, registramos no console
-        console.warn("API de alunos não disponível ou criação falhou:", err);
-      }
+      
 
       setSaving(false);
       setSuccess(true);

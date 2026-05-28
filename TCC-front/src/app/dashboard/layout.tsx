@@ -10,7 +10,6 @@ import {
   LogOut,
   BookOpen,
   GraduationCap,
-  Bell,
   ChevronRight,
   Shield,
   BarChart3,
@@ -139,16 +138,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <span>{currentPage?.name ?? "Dashboard"}</span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-1.5">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-xs text-green-700 font-medium">Sistema Online</span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-1.5">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-xs text-green-700 font-medium">Sistema Online</span>
+              </div>
             </div>
-            <button className="relative w-9 h-9 bg-gray-100 rounded-xl flex items-center justify-center text-gray-500 hover:bg-gray-200 transition">
-              <Bell size={16} />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#c8102e] rounded-full" />
-            </button>
-          </div>
         </header>
 
         {/* Content */}

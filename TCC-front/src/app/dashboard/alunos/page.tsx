@@ -3,15 +3,19 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Search, UserPlus, Filter, MoreVertical, Eye, Pencil, Trash2, ChevronDown, Users } from "lucide-react";
-import api from "@/lib/api";
+import api, { getFotoUrl } from "@/lib/api";
 
 interface Aluno {
   id: number;
   nome: string;
+  cpf: string;
   turma_nome: string;
   rfid: string;
   matricula: string;
   telefone: string;
+  foto: string;
+  nome_responsavel: string;
+  turmas_id: number;
   ultimo_acesso: string | null;
 }
 
@@ -21,6 +25,12 @@ export default function AlunosPage() {
   const [alunos, setAlunos] = useState<Aluno[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [alunoSelecionado, setAlunoSelecionado] = useState<Aluno | null>(null);
+  const [modalView, setModalView] = useState(false);
+  const [modalEdit, setModalEdit] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState<Partial<Aluno>>({});
+  const [fotoCarregadaMap, setFotoCarregadaMap] = useState<Record<number, boolean>>({})
 
   useEffect(() => {
     fetchAlunos();
@@ -60,6 +70,42 @@ export default function AlunosPage() {
   }, [alunos, busca, filtroStatus]);
 
   const ativos = alunos.filter((aluno) => aluno.ultimo_acesso).length;
+
+  const handleView = (aluno: Aluno) => {
+    setAlunoSelecionado(aluno);
+    setModalView(true);
+  };
+
+  const handleEdit = (aluno: Aluno) => {
+    setAlunoSelecionado(aluno);
+    setFormData(aluno);
+    setModalEdit(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!alunoSelecionado || !formData) return;
+    try {
+      setSaving(true);
+      await api.alunos.atualizar(alunoSelecionado.id, formData);
+      setModalEdit(false);
+      setAlunoSelecionado(null);
+      await fetchAlunos();
+    } catch (err: any) {
+      setError(err?.message || "Erro ao atualizar aluno.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Tem certeza que deseja deletar este aluno?")) return;
+    try {
+      await api.alunos.remover(id);
+      await fetchAlunos();
+    } catch (err: any) {
+      setError(err?.message || "Erro ao deletar aluno.");
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-7xl">
@@ -135,9 +181,20 @@ export default function AlunosPage() {
                   <tr key={aluno.id} className="hover:bg-gray-50 transition group">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-gradient-to-br from-[#c8102e] to-[#6b0016] rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                          {aluno.nome.split(" ").map((part) => part[0]).slice(0, 2).join("")}
-                        </div>
+                        {aluno.foto && fotoCarregadaMap[aluno.id] ? (
+                          <img
+                            src={getFotoUrl(aluno.foto) || ""}
+                            alt={aluno.nome}
+                            className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                            onError={() => setFotoCarregadaMap((prev) => ({ ...prev, [aluno.id]: false }))}
+                            onLoad={() => setFotoCarregadaMap((prev) => ({ ...prev, [aluno.id]: true }))}
+                          />
+                        ) : null}
+                        {!aluno.foto || !fotoCarregadaMap[aluno.id] ? (
+                          <div className="w-9 h-9 bg-gradient-to-br from-[#c8102e] to-[#6b0016] rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                            {aluno.nome.split(" ").map((part) => part[0]).slice(0, 2).join("")}
+                          </div>
+                        ) : null}
                         <div>
                           <p className="text-sm font-semibold text-gray-800">{aluno.nome}</p>
                           <p className="text-xs text-gray-400">ID #{aluno.id.toString().padStart(4, "0")}</p>
@@ -166,13 +223,13 @@ export default function AlunosPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition">
-                        <button className="w-8 h-8 rounded-lg hover:bg-blue-50 flex items-center justify-center text-blue-500 transition">
+                        <button onClick={() => handleView(aluno)} className="w-8 h-8 rounded-lg hover:bg-blue-50 flex items-center justify-center text-blue-500 transition">
                           <Eye size={15} />
                         </button>
-                        <button className="w-8 h-8 rounded-lg hover:bg-amber-50 flex items-center justify-center text-amber-500 transition">
+                        <button onClick={() => handleEdit(aluno)} className="w-8 h-8 rounded-lg hover:bg-amber-50 flex items-center justify-center text-amber-500 transition">
                           <Pencil size={15} />
                         </button>
-                        <button className="w-8 h-8 rounded-lg hover:bg-red-50 flex items-center justify-center text-red-500 transition">
+                        <button onClick={() => handleDelete(aluno.id)} className="w-8 h-8 rounded-lg hover:bg-red-50 flex items-center justify-center text-red-500 transition">
                           <Trash2 size={15} />
                         </button>
                       </div>
@@ -195,6 +252,166 @@ export default function AlunosPage() {
             <div className="flex gap-1">
               <button className="w-8 h-8 rounded-lg border border-gray-200 text-xs text-gray-500 hover:border-[#c8102e] hover:text-[#c8102e] transition">1</button>
               <button className="w-8 h-8 rounded-lg border border-gray-200 text-xs text-gray-400 hover:border-[#c8102e] hover:text-[#c8102e] transition">2</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal View */}
+      {modalView && alunoSelecionado && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl bg-white rounded-2xl overflow-hidden shadow-xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900">Informações do Aluno</h2>
+              <button onClick={() => setModalView(false)} className="text-gray-400 hover:text-gray-600">
+                ✕
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="flex gap-6">
+                {alunoSelecionado.foto && fotoCarregadaMap[alunoSelecionado.id] ? (
+                  <img
+                    src={getFotoUrl(alunoSelecionado.foto) || ""}
+                    alt={alunoSelecionado.nome}
+                    className="w-32 h-32 rounded-xl object-cover"
+                    onError={() => setFotoCarregadaMap((prev) => ({ ...prev, [alunoSelecionado.id]: false }))}
+                    onLoad={() => setFotoCarregadaMap((prev) => ({ ...prev, [alunoSelecionado.id]: true }))}
+                  />
+                ) : (
+                  <div className="w-32 h-32 bg-gradient-to-br from-[#c8102e] to-[#6b0016] rounded-xl flex items-center justify-center text-white text-4xl font-bold">
+                    {alunoSelecionado.nome.split(" ").map((part) => part[0]).slice(0, 2).join("")}
+                  </div>
+                )}
+                <div className="flex-1">
+                  <h3 className="text-2xl font-bold text-gray-900 mb-1">{alunoSelecionado.nome}</h3>
+                  <p className="text-sm text-gray-500 mb-4">ID #{alunoSelecionado.id.toString().padStart(4, "0")}</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-400 uppercase tracking-wide">Turma</p>
+                      <p className="text-sm font-semibold text-gray-900">{alunoSelecionado.turma_nome}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 uppercase tracking-wide">Matrícula</p>
+                      <p className="text-sm font-semibold text-gray-900">{alunoSelecionado.matricula}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 uppercase tracking-wide">CPF</p>
+                      <p className="text-sm font-semibold text-gray-900">{alunoSelecionado.cpf}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 uppercase tracking-wide">Telefone</p>
+                      <p className="text-sm font-semibold text-gray-900">{alunoSelecionado.telefone || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-gray-50 rounded-xl">
+                  <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">RFID / TAG</p>
+                  <code className="text-sm font-mono text-gray-900">{alunoSelecionado.rfid}</code>
+                </div>
+                <div className="p-4 bg-gray-50 rounded-xl">
+                  <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Responsável</p>
+                  <p className="text-sm font-semibold text-gray-900">{alunoSelecionado.nome_responsavel || "—"}</p>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+              <button
+                onClick={() => setModalView(false)}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Edit */}
+      {modalEdit && alunoSelecionado && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl bg-white rounded-2xl overflow-hidden shadow-xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900">Editar Aluno</h2>
+              <button onClick={() => setModalEdit(false)} className="text-gray-400 hover:text-gray-600">
+                ✕
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+                <input
+                  type="text"
+                  value={formData.nome || ""}
+                  onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#c8102e] transition"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">CPF</label>
+                  <input
+                    type="text"
+                    value={formData.cpf || ""}
+                    onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#c8102e] transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Matrícula</label>
+                  <input
+                    type="text"
+                    value={formData.matricula || ""}
+                    onChange={(e) => setFormData({ ...formData, matricula: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#c8102e] transition"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">RFID / TAG</label>
+                  <input
+                    type="text"
+                    value={formData.rfid || ""}
+                    onChange={(e) => setFormData({ ...formData, rfid: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#c8102e] transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+                  <input
+                    type="text"
+                    value={formData.telefone || ""}
+                    onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#c8102e] transition"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Responsável</label>
+                <input
+                  type="text"
+                  value={formData.nome_responsavel || ""}
+                  onChange={(e) => setFormData({ ...formData, nome_responsavel: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#c8102e] transition"
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+              <button
+                onClick={() => setModalEdit(false)}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={saving}
+                className="px-4 py-2 rounded-lg bg-[#c8102e] text-sm font-medium text-white hover:bg-[#a00d24] disabled:opacity-60 transition"
+              >
+                {saving ? "Salvando..." : "Salvar"}
+              </button>
             </div>
           </div>
         </div>

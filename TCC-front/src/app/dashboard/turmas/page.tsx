@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, Users, BookOpen, GraduationCap, Eye, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Users, BookOpen, GraduationCap, Eye, Pencil, Trash2, X } from "lucide-react";
 import api from "@/lib/api";
 
 interface Turma {
@@ -24,6 +24,10 @@ export default function TurmasPage() {
   const [saving, setSaving] = useState(false);
   const [professores, setProfessores] = useState<any[]>([]);
   const [professoresSelecionados, setProfessoresSelecionados] = useState<number[]>([]);
+  const [modalView, setModalView] = useState(false);
+  const [modalEdit, setModalEdit] = useState(false);
+  const [turmaSelecionada, setTurmaSelecionada] = useState<Turma | null>(null);
+  const [formData, setFormData] = useState<Partial<Turma>>({})
 
   useEffect(() => {
     if (modalAberto) {
@@ -105,6 +109,37 @@ export default function TurmasPage() {
     setTurmaEmEdicao(turma.id);
     setNovoNome(turma.nome);
     setModalAberto(true);
+  }
+
+  function handleView(turma: Turma) {
+    setTurmaSelecionada(turma);
+    setModalView(true);
+  }
+
+  function handleEdit(turma: Turma) {
+    setTurmaSelecionada(turma);
+    setFormData({
+      nome: turma.nome,
+    });
+    setModalEdit(true);
+  }
+
+  async function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!turmaSelecionada || !formData.nome?.trim()) return;
+
+    try {
+      setSaving(true);
+      await api.turmas.atualizar(turmaSelecionada.id, formData.nome.trim());
+      setModalEdit(false);
+      setTurmaSelecionada(null);
+      setFormData({});
+      await fetchTurmas();
+    } catch (err: any) {
+      setError(err?.message || "Erro ao atualizar turma.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleDeletarTurma(id: number) {
@@ -223,7 +258,7 @@ export default function TurmasPage() {
                   </p>
                 </div>
                 <div className="flex gap-1">
-                  <button className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"><Eye className="w-4 h-4" /></button>
+                  <button onClick={() => handleView(turma)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors"><Eye className="w-4 h-4" /></button>
                   <button onClick={() => handleEditarTurma(turma)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors"><Pencil className="w-4 h-4" /></button>
                   <button onClick={() => handleDeletarTurma(turma.id)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-red-600 transition-colors"><Trash2 className="w-4 h-4" /></button>
                 </div>
@@ -242,6 +277,77 @@ export default function TurmasPage() {
               Nenhuma turma encontrada.
             </div>
           )}
+        </div>
+      )}
+
+      {modalView && turmaSelecionada && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Detalhes da Turma</h2>
+              <button onClick={() => setModalView(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-3">
+              <div className="pb-4 border-b border-gray-100">
+                <h3 className="font-semibold text-gray-900 text-lg">{turmaSelecionada.nome}</h3>
+              </div>
+              
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total de Alunos</label>
+                <p className="text-sm text-gray-900 mt-1">{turmaSelecionada.total_alunos}</p>
+              </div>
+              
+              {turmaSelecionada.professores && turmaSelecionada.professores.length > 0 && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Professores</label>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {turmaSelecionada.professores.map((p) => (
+                      <span key={p.id} className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-medium">{p.nome}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex gap-3 pt-4">
+              <button onClick={() => setModalView(false)} className="flex-1 border border-gray-200 rounded-lg py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                Fechar
+              </button>
+              <button onClick={() => { setModalView(false); handleEdit(turmaSelecionada); }} className="flex-1 bg-[#c8102e] hover:bg-[#a00d24] text-white rounded-lg py-2 text-sm font-medium transition-colors">
+                Editar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalEdit && turmaSelecionada && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Editar Turma</h2>
+              <button onClick={() => setModalEdit(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Nome da Turma</label>
+                <input
+                  type="text"
+                  value={(formData as any).nome || ""}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, nome: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#c8102e]"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setModalEdit(false)} type="button" className="flex-1 border border-gray-200 rounded-lg py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={saving} className="flex-1 bg-[#c8102e] hover:bg-[#a00d24] text-white rounded-lg py-2 text-sm font-medium transition-colors">
+                  {saving ? "Salvando..." : "Atualizar"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

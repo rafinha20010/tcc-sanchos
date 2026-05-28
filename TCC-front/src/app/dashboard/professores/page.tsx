@@ -1,13 +1,14 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, Mail, Phone, BookOpen, Eye, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Mail, Phone, BookOpen, Eye, Pencil, Trash2, X } from "lucide-react";
 import api from "@/lib/api";
 
 interface Professor {
   id: number;
   nome: string;
   cpf: string;
+  rfid: string;
   telefone: string;
   turmas: { id: number; nome: string }[];
 }
@@ -22,6 +23,10 @@ export default function ProfessoresPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [profSelecionado, setProfSelecionado] = useState<Professor | null>(null);
+  const [modalView, setModalView] = useState(false);
+  const [modalEdit, setModalEdit] = useState(false);
+  const [formData, setFormData] = useState<Partial<Professor>>({});
 
   useEffect(() => {
     fetchProfessores();
@@ -116,6 +121,32 @@ export default function ProfessoresPage() {
       .toUpperCase();
   }
 
+  const handleView = (prof: Professor) => {
+    setProfSelecionado(prof);
+    setModalView(true);
+  };
+
+  const handleEdit = (prof: Professor) => {
+    setProfSelecionado(prof);
+    setFormData(prof);
+    setModalEdit(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!profSelecionado || !formData) return;
+    try {
+      setSaving(true);
+      await api.professores.atualizar(profSelecionado.id, formData as any);
+      setModalEdit(false);
+      setProfSelecionado(null);
+      await fetchProfessores();
+    } catch (err: any) {
+      setError(err?.message || "Erro ao atualizar professor.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     return professores.filter((prof) => {
@@ -183,7 +214,8 @@ export default function ProfessoresPage() {
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <button onClick={() => handleEditarProfessor(prof)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => handleView(prof)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors"><Eye className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => handleEdit(prof)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
                     <button onClick={() => handleDeletarProfessor(prof.id)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-red-600 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
@@ -221,6 +253,101 @@ export default function ProfessoresPage() {
               Nenhum professor encontrado
             </div>
           )}
+        </div>
+      )}
+
+      {modalView && profSelecionado && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Detalhes do Professor</h2>
+              <button onClick={() => setModalView(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center gap-4 pb-4 border-b border-gray-100">
+                <div className="w-16 h-16 rounded-full bg-[#c8102e] flex items-center justify-center text-white text-xl font-bold">
+                  {getInitials(profSelecionado.nome)}
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">{profSelecionado.nome}</h3>
+                  <span className="text-xs px-2 py-0.5 rounded-full font-medium mt-1 inline-block bg-green-50 text-green-700">Ativo</span>
+                </div>
+              </div>
+              
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">CPF</label>
+                <p className="text-sm text-gray-900 mt-1">{profSelecionado.cpf}</p>
+              </div>
+              
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tag RFID</label>
+                <p className="text-sm text-gray-900 mt-1">{profSelecionado.rfid || "Não cadastrado"}</p>
+              </div>
+              
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Telefone</label>
+                <p className="text-sm text-gray-900 mt-1">{profSelecionado.telefone}</p>
+              </div>
+              
+              {profSelecionado.turmas && profSelecionado.turmas.length > 0 && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Turmas</label>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {profSelecionado.turmas.map((t) => (
+                      <span key={t.id} className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-medium">{t.nome}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex gap-3 pt-4">
+              <button onClick={() => setModalView(false)} className="flex-1 border border-gray-200 rounded-lg py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                Fechar
+              </button>
+              <button onClick={() => { setModalView(false); handleEdit(profSelecionado); }} className="flex-1 bg-[#c8102e] hover:bg-[#a00d24] text-white rounded-lg py-2 text-sm font-medium transition-colors">
+                Editar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalEdit && profSelecionado && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Editar Professor</h2>
+              <button onClick={() => setModalEdit(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              {[
+                { label: "Nome completo", name: "nome", type: "text" },
+                { label: "CPF", name: "cpf", type: "text" },
+                { label: "Tag RFID", name: "rfid", type: "text" },
+                { label: "Telefone", name: "telefone", type: "text" },
+              ].map((field) => (
+                <div key={field.name}>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">{field.label}</label>
+                  <input
+                    name={field.name}
+                    type={field.type}
+                    value={(formData as any)[field.name] || ""}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#c8102e]"
+                  />
+                </div>
+              ))}
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setModalEdit(false)} type="button" className="flex-1 border border-gray-200 rounded-lg py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={saving} className="flex-1 bg-[#c8102e] hover:bg-[#a00d24] text-white rounded-lg py-2 text-sm font-medium transition-colors">
+                  {saving ? "Salvando..." : "Atualizar"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

@@ -28,7 +28,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve arquivos de upload estaticamente
 // Acesse com: http://localhost:3001/uploads/nome_do_arquivo.jpg
-app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ─── LOG DE REQUISIÇÕES (desenvolvimento) ──────────────────────────────────
 if (process.env.NODE_ENV === "development") {

@@ -5,7 +5,6 @@ import {
   Save,
   Wifi,
   Camera,
-  Bell,
   Shield,
   Database,
   RefreshCw,
