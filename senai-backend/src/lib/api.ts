@@ -215,6 +215,14 @@ export const upload = {
       }
     ),
 };
+// ─── UTILITÁRIO DE URL DE FOTO ────────────────────────────────────────────────
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") || "http://localhost:3001";
+
+export function getFotoUrl(foto: string | null | undefined): string | null {
+  if (!foto) return null;
+  if (foto.startsWith("http")) return foto;
+  return `${API_BASE}/${foto}`;
+}
 
 // Export default com todos os serviços
 const api = { auth, alunos, professores, turmas, registros, upload };

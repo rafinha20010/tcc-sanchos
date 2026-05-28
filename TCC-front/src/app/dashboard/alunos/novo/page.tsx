@@ -238,7 +238,7 @@ export default function NovoAlunoPage() {
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Curso</label>
               <select name="curso" value={form.curso} onChange={handleChange} required className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#c8102e] bg-white">
                 <option value="">Selecionar Curso</option>
-                <option value="DS">Desenv de Sistemas</option>
+                <option value="DS">Desenvolvimento de Sistemas</option>
                 <option value="RD">Eletrônica</option>
                 <option value="MC">Mecânica</option>
               </select>
